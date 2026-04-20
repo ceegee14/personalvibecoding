@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FLASH ✦ Photobooth</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --cream: #f5f0e8;
+  --dark: #1a1410;
+  --brown: #3d2b1f;
+  --red: #d93f2a;
+  --gold: #c9a84c;
+  --flash: #fff8e7;
+  --strip-bg: #fdfaf4;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--cream);
+  color: var(--dark);
+  font-family: 'DM Mono', monospace;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background-image:
+    radial-gradient(circle at 15% 25%, rgba(201,168,76,0.12) 0%, transparent 50%),
+    radial-gradient(circle at 85% 75%, rgba(217,63,42,0.08) 0%, transparent 50%),
+    url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23c9a84c' fill-opacity='0.04'%3E%3Ccircle cx='30' cy='30' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+
+/* ── Header ── */
+.header {
+  text-align: center;
+  padding: 36px 20px 20px;
+  position: relative;
+}
+.header::after {
+  content: '';
+  display: block;
+  width: 80px;
+  height: 3px;
+  background: var(--red);
+  margin: 16px auto 0;
+}
+
+.logo {
+  font-family: 'Bebas Neue', cursive;
+  font-size: clamp(3.5rem, 10vw, 6rem);
+  letter-spacing: 6px;
+  color: var(--dark);
+  line-height: 1;
+  position: relative;
+  display: inline-block;
+}
+.logo span {
+  color: var(--red);
+}
+.logo-sub {
+  font-family: 'Instrument Serif', serif;
+  font-style: italic;
+  font-size: 1rem;
+  color: var(--brown);
+  letter-spacing: 3px;
+  margin-top: 4px;
+  opacity: 0.7;
+}
+
+/* ── Layout ── */
+.main {
+  display: grid;
+  grid-template-columns: 1fr min(340px, 38vw);
+  gap: 24px;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 24px 20px 48px;
+  align-items: start;
+}
+
+@media (max-width: 700px) {
+  .main { grid-template-columns: 1fr; }
+}
+
+/* ── Camera panel ── */
+.camera-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.viewfinder {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4/3;
+  background: var(--dark);
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 6px var(--brown),
+    0 0 0 8px var(--gold),
+    0 8px 40px rgba(0,0,0,0.35);
+}
+
+.viewfinder::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* corner brackets */
+.viewfinder::after {
+  content: '';
+  position: absolute;
+  inset: 12px;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 2px;
+  z-index: 3;
+  pointer-events: none;
+}
+
+#video, #preview-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+#preview-canvas { display: none; }
+
+.filter-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+/* Countdown overlay */
+.countdown-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.countdown-overlay.show { opacity: 1; }
+.countdown-num {
+  font-family: 'Bebas Neue', cursive;
+  font-size: 9rem;
+  color: white;
+  text-shadow:
+    0 0 20px rgba(255,255,255,0.8),
+    0 0 60px rgba(255,200,50,0.5);
+  animation: countPulse 0.9s ease-out;
+}
+
+@keyframes countPulse {
+  0% { transform: scale(1.6); opacity: 0; }
+  30% { opacity: 1; }
+  80% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.8); opacity: 0; }
+}
+
+/* Flash */
+.flash-overlay {
+  position: fixed;
+  inset: 0;
+  background: white;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 99;
+  transition: opacity 0.08s;
+}
+.flash-overlay.flash { opacity: 1; transition: opacity 0s; }
+
+/* Camera not active */
+.cam-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: rgba(255,255,255,0.4);
+  z-index: 5;
+}
+.cam-placeholder-icon { font-size: 3rem; }
+.cam-placeholder-text { font-size: 0.75rem; letter-spacing: 2px; text-transform: uppercase; }
+
+/* ── Controls ── */
+.controls-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.btn {
+  font-family: 'Bebas Neue', cursive;
+  font-size: 1.1rem;
+  letter-spacing: 2px;
+  padding: 10px 22px;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.12s;
+  position: relative;
+}
+.btn:hover { transform: translateY(-2px); }
+.btn:active { transform: translateY(0) scale(0.97); }
+
+.btn-start {
+  background: var(--red);
+  color: white;
+  box-shadow: 4px 4px 0 var(--brown);
+}
+.btn-start:hover { box-shadow: 6px 6px 0 var(--brown); }
+
+.btn-snap {
+  background: var(--dark);
+  color: var(--gold);
+  box-shadow: 4px 4px 0 var(--gold);
+  flex: 1;
+}
+.btn-snap:hover { box-shadow: 6px 6px 0 var(--gold); }
+.btn-snap:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+.btn-clear {
+  background: transparent;
+  color: var(--brown);
+  border: 2px solid var(--brown);
+  box-shadow: none;
+  font-size: 0.85rem;
+  padding: 8px 14px;
+}
+
+.auto-badge {
+  background: var(--gold);
+  color: var(--dark);
+  font-size: 0.65rem;
+  padding: 2px 7px;
+  border-radius: 20px;
+  font-family: 'DM Mono', monospace;
+  font-weight: 500;
+  vertical-align: middle;
+  margin-left: 4px;
+}
+
+/* ── Filters ── */
+.section-label {
+  font-size: 0.65rem;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--brown);
+  opacity: 0.6;
+  margin-bottom: 8px;
+}
+
+.filters-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filter-btn {
+  width: 52px;
+  height: 52px;
+  border-radius: 3px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  font-size: 0.6rem;
+  font-family: 'DM Mono', monospace;
+  text-align: center;
+  transition: border-color 0.15s, transform 0.12s;
+  overflow: hidden;
+  position: relative;
+  padding-top: 34px;
+  color: white;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  background-size: cover;
+  background-position: center;
+}
+.filter-btn:hover { transform: scale(1.08); }
+.filter-btn.active { border-color: var(--red); box-shadow: 0 0 0 2px var(--red); }
+
+.filter-none  { background: #444; }
+.filter-mono  { background: #888; filter: grayscale(1); }
+.filter-warm  { background: linear-gradient(135deg, #d4a96a, #c07650); }
+.filter-cool  { background: linear-gradient(135deg, #7aa7c7, #5580a8); }
+.filter-faded { background: linear-gradient(135deg, #b0a090, #c8b898); }
+.filter-vivid { background: linear-gradient(135deg, #e94f37, #f5a623, #1db954); }
+.filter-noir  { background: linear-gradient(135deg, #1a1a1a, #444); }
+.filter-rosy  { background: linear-gradient(135deg, #e8a0a0, #c87090); }
+
+/* ── Frames ── */
+.frames-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.frame-btn {
+  padding: 7px 14px;
+  border-radius: 3px;
+  border: 2px solid var(--gold);
+  background: transparent;
+  color: var(--dark);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: all 0.15s;
+  letter-spacing: 0.5px;
+}
+.frame-btn:hover { background: var(--gold); color: var(--dark); }
+.frame-btn.active { background: var(--gold); color: var(--dark); font-weight: 500; }
+
+/* ── Strip panel ── */
+.strip-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: sticky;
+  top: 20px;
+}
+
+.strip-container {
+  background: var(--strip-bg);
+  border-radius: 4px;
+  padding: 14px 12px 20px;
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,0.08),
+    0 4px 24px rgba(0,0,0,0.12),
+    inset 0 0 0 1px rgba(255,255,255,0.8);
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+  overflow: hidden;
+}
+
+.strip-container::before {
+  content: attr(data-label);
+  font-family: 'Bebas Neue', cursive;
+  font-size: 1.3rem;
+  letter-spacing: 4px;
+  color: var(--dark);
+  opacity: 0.15;
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.strip-photo {
+  width: 100%;
+  aspect-ratio: 4/3;
+  background: #ddd;
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+  flex-shrink: 0;
+}
+.strip-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.strip-photo.empty {
+  background: linear-gradient(135deg, #e8e0d0, #d8d0c0);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(0,0,0,0.2);
+  font-size: 1.5rem;
+}
+
+.strip-date {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.55rem;
+  color: var(--brown);
+  opacity: 0.5;
+  letter-spacing: 1px;
+  align-self: flex-end;
+  margin-top: 2px;
+}
+
+.strip-title {
+  font-family: 'Instrument Serif', serif;
+  font-style: italic;
+  font-size: 0.9rem;
+  color: var(--brown);
+  opacity: 0.6;
+  text-align: center;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(0,0,0,0.08);
+  width: 100%;
+}
+
+.strip-empty-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: rgba(0,0,0,0.2);
+  pointer-events: none;
+}
+.strip-empty-hint .hint-icon { font-size: 2.5rem; }
+.strip-empty-hint .hint-text { font-size: 0.7rem; letter-spacing: 2px; text-transform: uppercase; }
+
+.btn-download {
+  font-family: 'Bebas Neue', cursive;
+  font-size: 1.05rem;
+  letter-spacing: 2px;
+  padding: 11px 0;
+  width: 100%;
+  background: var(--dark);
+  color: var(--cream);
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.15s;
+  box-shadow: 4px 4px 0 var(--red);
+}
+.btn-download:hover { box-shadow: 6px 6px 0 var(--red); transform: translateY(-2px); }
+.btn-download:disabled { opacity: 0.3; cursor: not-allowed; transform: none; box-shadow: none; }
+
+.shot-count {
+  font-size: 0.65rem;
+  letter-spacing: 2px;
+  color: var(--brown);
+  opacity: 0.5;
+  text-align: center;
+}
+
+/* Shutter animation on strip */
+@keyframes photoIn {
+  0% { opacity: 0; transform: scale(0.92) rotate(-1deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+.strip-photo.new-photo { animation: photoIn 0.35s cubic-bezier(0.34,1.3,0.64,1) forwards; }
+
+</style>
+</head>
+<body>
+
+<div class="flash-overlay" id="flash"></div>
+
+<header class="header">
+  <div class="logo">FLA<span>SH</span></div>
+  <div class="logo-sub">✦ instant photobooth ✦</div>
+</header>
+
+<div class="main">
+
+  <!-- LEFT: Camera -->
+  <div class="camera-panel">
+
+    <div class="viewfinder" id="viewfinder">
+      <div class="cam-placeholder" id="cam-placeholder">
+        <div class="cam-placeholder-icon">📷</div>
+        <div class="cam-placeholder-text">Camera off</div>
+      </div>
+      <video id="video" autoplay playsinline muted></video>
+      <canvas id="preview-canvas"></canvas>
+      <canvas id="filter-canvas" style="display:none"></canvas>
+      <div class="countdown-overlay" id="countdown-overlay">
+        <div class="countdown-num" id="countdown-num">3</div>
+      </div>
+    </div>
+
+    <!-- Main controls -->
+    <div class="controls-row">
+      <button class="btn btn-start" id="btn-start" onclick="startCamera()">▶ Start Camera</button>
+      <button class="btn btn-snap" id="btn-snap" onclick="startCountdown()" disabled>
+        ◉ Snap <span class="auto-badge" id="auto-label" style="display:none">AUTO</span>
+      </button>
+      <button class="btn btn-clear" onclick="clearStrip()">✕ Clear</button>
+    </div>
+
+    <!-- Auto mode -->
+    <div>
+      <div class="section-label">Shoot Mode</div>
+      <div class="controls-row">
+        <button class="btn btn-clear" id="btn-single" onclick="setMode('single')" style="border-color:var(--red);color:var(--red)">Single</button>
+        <button class="btn btn-clear" id="btn-strip" onclick="setMode('strip')">4-Shot Strip</button>
+        <button class="btn btn-clear" id="btn-burst" onclick="setMode('burst')">Burst ×3</button>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div>
+      <div class="section-label">Filter</div>
+      <div class="filters-row" id="filters-row">
+        <button class="filter-btn filter-none active" data-filter="none" onclick="setFilter(this)">OG</button>
+        <button class="filter-btn filter-mono" data-filter="grayscale(1)" onclick="setFilter(this)">MONO</button>
+        <button class="filter-btn filter-warm" data-filter="sepia(0.5) saturate(1.3) brightness(1.05)" onclick="setFilter(this)">WARM</button>
+        <button class="filter-btn filter-cool" data-filter="hue-rotate(190deg) saturate(0.9) brightness(1.1)" onclick="setFilter(this)">COOL</button>
+        <button class="filter-btn filter-faded" data-filter="contrast(0.8) brightness(1.1) saturate(0.7)" onclick="setFilter(this)">FADE</button>
+        <button class="filter-btn filter-vivid" data-filter="saturate(2) contrast(1.1)" onclick="setFilter(this)">POP</button>
+        <button class="filter-btn filter-noir" data-filter="grayscale(1) contrast(1.4) brightness(0.85)" onclick="setFilter(this)">NOIR</button>
+        <button class="filter-btn filter-rosy" data-filter="sepia(0.3) hue-rotate(310deg) saturate(1.4)" onclick="setFilter(this)">ROSY</button>
+      </div>
+    </div>
+
+    <!-- Frames -->
+    <div>
+      <div class="section-label">Strip Frame</div>
+      <div class="frames-row">
+        <button class="frame-btn active" data-frame="classic" onclick="setFrame(this)">Classic</button>
+        <button class="frame-btn" data-frame="polaroid" onclick="setFrame(this)">Polaroid</button>
+        <button class="frame-btn" data-frame="noir" onclick="setFrame(this)">Noir</button>
+        <button class="frame-btn" data-frame="pastel" onclick="setFrame(this)">Pastel</button>
+        <button class="frame-btn" data-frame="gold" onclick="setFrame(this)">Gold Foil</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT: Strip -->
+  <div class="strip-panel">
+    <div class="section-label" style="text-align:center">Your Strip</div>
+
+    <div class="strip-container" id="strip-container" data-label="FLASH">
+      <div class="strip-empty-hint" id="strip-hint">
+        <div class="hint-icon">🎞️</div>
+        <div class="hint-text">Snap to fill</div>
+      </div>
+    </div>
+
+    <div class="shot-count" id="shot-count">0 / 4 shots</div>
+
+    <button class="btn-download" id="btn-download" onclick="downloadStrip()" disabled>⬇ Save Strip</button>
+  </div>
+
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────────
+let stream = null;
+let currentFilter = 'none';
+let currentFrame = 'classic';
+let currentMode = 'single';
+let photos = []; // dataURLs
+let isCountingDown = false;
+
+const MAX_SHOTS = 4;
+
+const video = document.getElementById('video');
+const snapBtn = document.getElementById('btn-snap');
+const stripContainer = document.getElementById('strip-container');
+const stripHint = document.getElementById('strip-hint');
+const shotCountEl = document.getElementById('shot-count');
+const downloadBtn = document.getElementById('btn-download');
+const countdownOverlay = document.getElementById('countdown-overlay');
+const countdownNum = document.getElementById('countdown-num');
+const flash = document.getElementById('flash');
+const autoLabel = document.getElementById('auto-label');
+
+const frameStyles = {
+  classic: { bg: '#fdfaf4', border: '#1a1410', text: '#3d2b1f' },
+  polaroid: { bg: '#ffffff', border: '#ffffff', text: '#555' },
+  noir:     { bg: '#111', border: '#111', text: '#ccc' },
+  pastel:   { bg: '#fce4ec', border: '#f8bbd9', text: '#880e4f' },
+  gold:     { bg: '#1a1208', border: '#c9a84c', text: '#c9a84c' },
+};
+
+// ── Camera ─────────────────────────────────────────────────────────────────────
+async function startCamera() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 } }, audio: false });
+    video.srcObject = stream;
+    video.style.display = 'block';
+    document.getElementById('cam-placeholder').style.display = 'none';
+    document.getElementById('btn-start').textContent = '◼ Stop';
+    document.getElementById('btn-start').onclick = stopCamera;
+    snapBtn.disabled = false;
+  } catch(e) {
+    alert('Could not access camera. Please allow camera permissions and try again.');
+  }
+}
+
+function stopCamera() {
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  video.srcObject = null;
+  video.style.display = 'none';
+  document.getElementById('cam-placeholder').style.display = 'flex';
+  document.getElementById('btn-start').textContent = '▶ Start Camera';
+  document.getElementById('btn-start').onclick = startCamera;
+  snapBtn.disabled = true;
+}
+
+// ── Filter ─────────────────────────────────────────────────────────────────────
+function setFilter(btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentFilter = btn.dataset.filter;
+  video.style.filter = currentFilter === 'none' ? '' : currentFilter;
+}
+
+// ── Frame ──────────────────────────────────────────────────────────────────────
+function setFrame(btn) {
+  document.querySelectorAll('.frame-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentFrame = btn.dataset.frame;
+  renderStrip();
+}
+
+// ── Mode ───────────────────────────────────────────────────────────────────────
+function setMode(mode) {
+  currentMode = mode;
+  ['single','strip','burst'].forEach(m => {
+    const b = document.getElementById('btn-' + m);
+    b.style.borderColor = m === mode ? 'var(--red)' : '';
+    b.style.color = m === mode ? 'var(--red)' : '';
+  });
+  autoLabel.style.display = mode !== 'single' ? 'inline' : 'none';
+  autoLabel.textContent = mode === 'strip' ? 'AUTO ×4' : 'BURST ×3';
+}
+
+// ── Shoot ──────────────────────────────────────────────────────────────────────
+function startCountdown(onDone) {
+  if (isCountingDown || !stream) return;
+  isCountingDown = true;
+  snapBtn.disabled = true;
+
+  let count = 3;
+  countdownNum.textContent = count;
+  countdownOverlay.classList.add('show');
+
+  const tick = setInterval(() => {
+    count--;
+    if (count <= 0) {
+      clearInterval(tick);
+      countdownOverlay.classList.remove('show');
+      setTimeout(() => {
+        capturePhoto();
+        isCountingDown = false;
+        if (onDone) onDone();
+        else snapBtn.disabled = false;
+      }, 200);
+    } else {
+      countdownNum.style.animation = 'none';
+      void countdownNum.offsetWidth; // reflow
+      countdownNum.style.animation = '';
+      countdownNum.textContent = count;
+    }
+  }, 900);
+}
+
+function capturePhoto() {
+  if (!stream || photos.length >= MAX_SHOTS) return;
+
+  // Flash
+  flash.classList.add('flash');
+  setTimeout(() => flash.classList.remove('flash'), 250);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth || 640;
+  canvas.height = video.videoHeight || 480;
+  const ctx = canvas.getContext('2d');
+
+  // Mirror (selfie cam feel)
+  ctx.translate(canvas.width, 0);
+  ctx.scale(-1, 1);
+  ctx.drawImage(video, 0, 0);
+  ctx.setTransform(1,0,0,1,0,0);
+
+  // Apply filter via CSS filter trick on offscreen canvas
+  if (currentFilter !== 'none') {
+    const tmp = document.createElement('canvas');
+    tmp.width = canvas.width; tmp.height = canvas.height;
+    const tctx = tmp.getContext('2d');
+    tctx.filter = currentFilter;
+    tctx.drawImage(canvas, 0, 0);
+    photos.push(tmp.toDataURL('image/jpeg', 0.92));
+  } else {
+    photos.push(canvas.toDataURL('image/jpeg', 0.92));
+  }
+
+  renderStrip();
+}
+
+function shootStrip() {
+  if (!stream) return;
+  const total = currentMode === 'burst' ? 3 : 4;
+  let taken = 0;
+
+  function next() {
+    if (taken >= total || photos.length >= MAX_SHOTS) {
+      snapBtn.disabled = false;
+      return;
+    }
+    taken++;
+    startCountdown(() => {
+      if (taken < total && photos.length < MAX_SHOTS) {
+        setTimeout(next, 600);
+      } else {
+        snapBtn.disabled = false;
+      }
+    });
+  }
+  next();
+}
+
+// Override snap button per mode
+snapBtn.addEventListener('click', () => {});
+document.getElementById('btn-snap').onclick = () => {
+  if (currentMode === 'single') {
+    startCountdown(() => { snapBtn.disabled = false; });
+  } else {
+    shootStrip();
+  }
+};
+
+// ── Strip Render ───────────────────────────────────────────────────────────────
+function renderStrip() {
+  // Remove all photo divs
+  Array.from(stripContainer.querySelectorAll('.strip-photo, .strip-date, .strip-title')).forEach(el => el.remove());
+
+  const style = frameStyles[currentFrame];
+  stripContainer.style.background = style.bg;
+  stripContainer.style.boxShadow = `0 0 0 1px rgba(0,0,0,0.1), 0 4px 24px rgba(0,0,0,0.15), inset 0 0 0 3px ${style.border}`;
+
+  stripHint.style.display = photos.length === 0 ? 'flex' : 'none';
+
+  photos.forEach((src, i) => {
+    const div = document.createElement('div');
+    div.className = 'strip-photo new-photo';
+    div.style.animationDelay = '0s';
+    const img = document.createElement('img');
+    img.src = src;
+    div.appendChild(img);
+    stripContainer.appendChild(div);
+    setTimeout(() => div.classList.remove('new-photo'), 400);
+  });
+
+  // Empty slots
+  for (let i = photos.length; i < MAX_SHOTS; i++) {
+    const div = document.createElement('div');
+    div.className = 'strip-photo empty';
+    div.textContent = '📷';
+    stripContainer.appendChild(div);
+  }
+
+  const dateEl = document.createElement('div');
+  dateEl.className = 'strip-date';
+  dateEl.style.color = style.text;
+  dateEl.textContent = new Date().toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' });
+  stripContainer.appendChild(dateEl);
+
+  const titleEl = document.createElement('div');
+  titleEl.className = 'strip-title';
+  titleEl.style.color = style.text;
+  titleEl.style.borderTopColor = style.text + '22';
+  titleEl.textContent = '✦ flash ✦';
+  stripContainer.appendChild(titleEl);
+
+  shotCountEl.textContent = `${photos.length} / ${MAX_SHOTS} shots`;
+  downloadBtn.disabled = photos.length === 0;
+}
+
+// ── Clear ──────────────────────────────────────────────────────────────────────
+function clearStrip() {
+  photos = [];
+  renderStrip();
+}
+
+// ── Download ───────────────────────────────────────────────────────────────────
+async function downloadStrip() {
+  if (photos.length === 0) return;
+
+  const style = frameStyles[currentFrame];
+  const W = 320, PADDING = 14, GAP = 7, DATE_H = 32;
+  const imgH = Math.round(W * 3 / 4);
+  const totalH = PADDING + MAX_SHOTS * (imgH + GAP) + DATE_H + PADDING;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = W + PADDING * 2;
+  canvas.height = totalH;
+  const ctx = canvas.getContext('2d');
+
+  // Background
+  ctx.fillStyle = style.bg;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Border
+  ctx.strokeStyle = style.border;
+  ctx.lineWidth = 6;
+  ctx.strokeRect(3, 3, canvas.width - 6, canvas.height - 6);
+
+  let y = PADDING;
+  for (let i = 0; i < MAX_SHOTS; i++) {
+    if (photos[i]) {
+      const img = new Image();
+      await new Promise(res => { img.onload = res; img.src = photos[i]; });
+      ctx.drawImage(img, PADDING, y, W, imgH);
+    } else {
+      ctx.fillStyle = i % 2 === 0 ? '#e8e0d0' : '#d8d0c0';
+      ctx.fillRect(PADDING, y, W, imgH);
+    }
+    y += imgH + GAP;
+  }
+
+  // Date + label
+  ctx.fillStyle = style.text;
+  ctx.font = '11px monospace';
+  ctx.textAlign = 'right';
+  ctx.fillText(new Date().toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' }), canvas.width - PADDING, y + 14);
+  ctx.textAlign = 'center';
+  ctx.font = 'italic 13px Georgia';
+  ctx.fillText('✦ flash ✦', canvas.width / 2, y + 26);
+
+  const link = document.createElement('a');
+  link.download = `flash-strip-${Date.now()}.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
+
+// Init
+renderStrip();
+setMode('single');
+</script>
+</body>
+</html>
